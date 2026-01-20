@@ -28,12 +28,12 @@ export interface StateStats {
 const generateUFI = (): { ufi: number; category: UFIRecord['ufiCategory'] } => {
   const ufi = Math.random() * 100;
   let category: UFIRecord['ufiCategory'];
-  
+
   if (ufi < 25) category = 'Low Friction';
   else if (ufi < 50) category = 'Moderate Friction';
   else if (ufi < 75) category = 'High Friction';
   else category = 'Very High Friction';
-  
+
   return { ufi: Math.round(ufi * 100) / 100, category };
 };
 
@@ -224,15 +224,15 @@ const statesData: { name: string; districts: string[]; lat: number; lng: number 
 // Generate UFI data for all districts
 export const generateUFIData = (): UFIRecord[] => {
   const data: UFIRecord[] = [];
-  
+
   statesData.forEach(state => {
     state.districts.forEach((district, index) => {
       const { ufi, category } = generateUFI();
-      
+
       // Generate component scores with some correlation to UFI
       const baseScore = ufi;
       const variance = () => (Math.random() - 0.5) * 30;
-      
+
       data.push({
         state: state.name,
         district,
@@ -250,27 +250,27 @@ export const generateUFIData = (): UFIRecord[] => {
       });
     });
   });
-  
+
   return data;
 };
 
 // Generate State Statistics
 export const generateStateStats = (data: UFIRecord[]): StateStats[] => {
   const stateMap = new Map<string, UFIRecord[]>();
-  
+
   data.forEach(record => {
     const existing = stateMap.get(record.state) || [];
     existing.push(record);
     stateMap.set(record.state, existing);
   });
-  
+
   const stats: StateStats[] = [];
-  
+
   stateMap.forEach((records, state) => {
     const meanUFI = records.reduce((sum, r) => sum + r.ufi, 0) / records.length;
     const highFrictionCount = records.filter(r => r.ufi >= 50).length;
     const totalPopulation = records.reduce((sum, r) => sum + r.population, 0);
-    
+
     stats.push({
       state,
       meanUFI: Math.round(meanUFI * 100) / 100,
@@ -279,7 +279,7 @@ export const generateStateStats = (data: UFIRecord[]): StateStats[] => {
       totalPopulation,
     });
   });
-  
+
   return stats.sort((a, b) => b.meanUFI - a.meanUFI);
 };
 
@@ -312,11 +312,65 @@ export const getUFICategoryClass = (category: UFIRecord['ufiCategory']): string 
 // Pre-generated data for consistent state
 let cachedData: UFIRecord[] | null = null;
 
-export const getUFIData = (): UFIRecord[] => {
-  if (!cachedData) {
-    cachedData = generateUFIData();
+const parseCSV = async (filePath: string): Promise<Record<string, string>[]> => {
+  const response = await fetch(filePath);
+  const text = await response.text();
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim());
+
+  return lines.slice(1).map(line => {
+    const values = line.split(',');
+    const obj: Record<string, string> = {};
+    headers.forEach((header, i) => {
+      obj[header] = values[i]?.trim() || '';
+    });
+    return obj;
+  });
+};
+
+export const getUFIData = async (): Promise<UFIRecord[]> => {
+  if (cachedData) {
+    return cachedData;
   }
-  return cachedData;
+
+  try {
+    console.log('Loading CSV from /data/ufi_scores.csv');
+    const csvData = await parseCSV('/data/ufi_scores.csv');
+    console.log('CSV loaded:', csvData.length, 'records');
+
+    // Create a map of state coordinates
+    const stateCoords = new Map<string, { lat: number; lng: number }>();
+    statesData.forEach(state => {
+      stateCoords.set(state.name, { lat: state.lat, lng: state.lng });
+    });
+
+    cachedData = csvData.map(row => {
+      const stateCoord = stateCoords.get(row.state) || { lat: 20, lng: 78 };
+      const variance = () => (Math.random() - 0.5) * 1.5;
+
+      return {
+        state: row.state,
+        district: row.district,
+        ufi: parseFloat(row.UFI) || 0,
+        ufiCategory: row.UFI_Category as UFIRecord['ufiCategory'],
+        demoUpdateIntensity: parseFloat(row.demo_update_intensity_normalized) || 0,
+        bioRefreshRate: parseFloat(row.bio_refresh_rate_normalized) || 0,
+        ageDisparity: parseFloat(row.age_disparity_normalized) || 0,
+        updateEnrolRatio: parseFloat(row.update_enrol_ratio_normalized) || 0,
+        temporalVolatility: parseFloat(row.temporal_volatility_normalized) || 0,
+        totalEnrollments: parseInt(row.total_enrollments) || 50000,
+        population: parseInt(row.population) || 100000,
+        latitude: stateCoord.lat + variance(),
+        longitude: stateCoord.lng + variance(),
+      };
+    });
+
+    return cachedData;
+  } catch (error) {
+    console.error('Failed to load CSV, using generated data:', error);
+    cachedData = generateUFIData();
+    return cachedData;
+  }
 };
 
 export const refreshData = (): UFIRecord[] => {
