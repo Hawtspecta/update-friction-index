@@ -3,7 +3,7 @@ import {
   Sun, 
   Moon, 
   HelpCircle, 
-  Menu,
+  Filter,
   X,
   BarChart3,
   Shield
@@ -38,7 +38,7 @@ export const Navigation = () => {
             className="md:hidden"
             onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
           >
-            {mobileFiltersOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            {mobileFiltersOpen ? <X className="h-5 w-5" /> : <Filter className="h-5 w-5" />}
           </Button>
           
           <div className="flex items-center gap-3">
